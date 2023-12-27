@@ -6,7 +6,7 @@ const { cssSelectors } = require('./data/css_selectors');
     const cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_PAGE,
         maxConcurrency: 1,
-        monitor: true,
+        monitor: false,
         puppeteerOptions: {
             headless: false,
             defaultViewport: false,
@@ -33,7 +33,7 @@ const { cssSelectors } = require('./data/css_selectors');
             const isElementVisible = async (page, cssSelector) => {
                 let visible = true;
                 await page
-                    .waitForSelector(cssSelector, { visible: true, timeout: 100 })
+                    .waitForSelector(cssSelector, { visible: true, timeout: 2000 })
                     .catch(() => {
                         visible = false;
                     });
@@ -50,8 +50,50 @@ const { cssSelectors } = require('./data/css_selectors');
         }catch (error) {
             console.error('Error:', error);
         }finally{
-            const reviews = await page.$$('div.c-product-review-card');
-            console.log(reviews.length);
+            const reviews = (await page.$$(cssSelectors.REVIEW_CARD_CONTAINER)).splice(3);
+
+            let reviewsRes = {"reviews": []};
+            for(const review of reviews){
+                const userName = await page.evaluate(el => el.querySelector('div > h5').textContent, review);
+                const pTags = await page.evaluate(review => {
+                    const paragraphs = review.querySelectorAll('div > p');
+                    return Array.from(paragraphs).map(p => p.textContent.trim());
+                }, review);
+
+                const reviewDate = await page.evaluate(el => el.querySelector("span.c-product-review-card__rating-date").textContent, review);
+                const reviewTitle = await page.evaluate(el => el.querySelector('div > h4').textContent, review);
+                const reviewText = pTags.pop();
+
+                const starRatings = await page.evaluate(review => {
+                    const stars = review.querySelectorAll("span.c-icon--color-primary.c-star-rating__star");
+                    return Array.from(stars).map(s => {
+                        if(s.classList.contains('c-icon--color-primary')){
+                            return 1;
+                        }else{
+                            return 0;
+                        }
+                    });
+                }, review);
+
+                reviewsRes["reviews"].push(
+                    {
+                        "review_posted_by_username": userName,
+                        "review_date": reviewDate,
+                        "review_title": reviewTitle,
+                        "review_text": reviewText,
+                        "star_ratings": starRatings.length
+                    }
+                );
+
+                for(let tag of pTags){
+                    tag = tag.split(': ');
+                    tag[0] = "user_" + tag[0].replace(' ', '_').toLowerCase();
+                    reviewsRes["reviews"][reviewsRes["reviews"].length - 1][tag[0]] = tag[1];
+                }
+            }
+            fs.appendFile('reviews.json', `${JSON.stringify(reviewsRes)}\n`, function (err) {
+                if (err) throw err;
+            });
         }
     });
 

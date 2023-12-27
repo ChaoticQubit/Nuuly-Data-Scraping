@@ -27,3 +27,23 @@ fs.appendFile('reviews.txt', `${userDetails}\n`, function (err) {
 //         console.log(error);
 //     }
 // }
+
+
+
+
+// const userSize = (await page.evaluate(el => el.querySelector('div > p:nth-child(1)').textContent, review)).split(': ')[1];
+                // const userDressColor = (await page.evaluate(el => el.querySelector('div > p:nth-child(2)').textContent, review)).split(': ')[1];
+                // const userHeight = (await page.evaluate(el => el.querySelector('div > p:nth-child(3)').textContent, review)).split(': ')[1];
+                // const userBodyType = (await page.evaluate(el => el.querySelector('div:nth-child(2) > p:nth-child(1)').textContent, review)).split(': ')[1];
+                // const userBraSize = (await page.evaluate(el => el.querySelector('div:nth-child(2) > p:nth-child(2)').textContent, review)).split(': ')[1];
+
+                // resultSet["reviews"].push(
+                //     {
+                //         "review_posted_by_username": userName,
+                //         "user_size": userSize,
+                //         "user_dress_color": userDressColor,
+                //         "user_height": userHeight,
+                //         "user_body_type": userBodyType,
+                //         "user_bra_size": userBraSize
+                //     }
+                // );
