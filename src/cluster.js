@@ -1,12 +1,12 @@
 const { Cluster } = require('puppeteer-cluster');
-var fs = require('fs');
 const { cssSelectors } = require('./data/css_selectors');
+var fs = require('fs');
 
 (async () => {
     const cluster = await Cluster.launch({
-        concurrency: Cluster.CONCURRENCY_PAGE,
+        concurrency: Cluster.CONCURRENCY_BROWSER,
         maxConcurrency: 1,
-        monitor: false,
+        monitor: true,
         puppeteerOptions: {
             headless: false,
             defaultViewport: false,
@@ -25,15 +25,22 @@ const { cssSelectors } = require('./data/css_selectors');
     });
 
     await cluster.task(async ({ page, data: url }) => {
+        let productDetails = {};
         try{
             await page.goto(url, {waitUntil: "load"});
+
+            productDetails["product_link"] = url;
+            productDetails["product_name"] = await page.$eval('h1', el => el.textContent);
+            productDetails["product_description"] = await page.$eval('div.c-product-details__content', el => el.textContent);
+            productDetails["product_price"] = parseInt((await page.$eval('span.c-product-info-header__msrp', el => el.textContent)).split(': $')[1]);
+
             await page.click(cssSelectors.VIEW_ALL_REVIEWS_BTN);
             await page.waitForSelector(cssSelectors.REVIEWS_CONTAINER);
 
             const isElementVisible = async (page, cssSelector) => {
                 let visible = true;
                 await page
-                    .waitForSelector(cssSelector, { visible: true, timeout: 2000 })
+                    .waitForSelector(cssSelector, { visible: true, timeout: 100 })
                     .catch(() => {
                         visible = false;
                     });
@@ -78,10 +85,6 @@ const { cssSelectors } = require('./data/css_selectors');
                 reviewsRes["reviews"].push(
                     {
                         "review_posted_by_username": userName,
-                        "review_date": reviewDate,
-                        "review_title": reviewTitle,
-                        "review_text": reviewText,
-                        "star_ratings": starRatings.length
                     }
                 );
 
@@ -90,18 +93,25 @@ const { cssSelectors } = require('./data/css_selectors');
                     tag[0] = "user_" + tag[0].replace(' ', '_').toLowerCase();
                     reviewsRes["reviews"][reviewsRes["reviews"].length - 1][tag[0]] = tag[1];
                 }
+
+                reviewsRes["reviews"][reviewsRes["reviews"].length - 1]["review_date"] = reviewDate;
+                reviewsRes["reviews"][reviewsRes["reviews"].length - 1]["review_title"] = reviewTitle;
+                reviewsRes["reviews"][reviewsRes["reviews"].length - 1]["review_text"] = reviewText;
+                reviewsRes["reviews"][reviewsRes["reviews"].length - 1]["star_ratings"] = starRatings.length;
             }
-            fs.appendFile('reviews.json', `${JSON.stringify(reviewsRes)}\n`, function (err) {
-                if (err) throw err;
-            });
+
+            productDetails["reviews"] = reviewsRes["reviews"];
+
+            let productData = fs.readFileSync("reviews.json","utf-8");
+            let products = JSON.parse(productData);
+            products.push(productDetails);
+            fs.writeFileSync("reviews.json", JSON.stringify(products, null, 2));
         }
     });
 
-    // for(const link of productLinks.splice(0, 1)){
-    //     await cluster.queue(link);
-    // }
-
-    await cluster.queue('https://www.nuuly.com/rent/products/retro-floral-tiered-duster?color=001');
+    for(const link of productLinks.splice(0, 100)){
+        await cluster.queue(link);
+    }
 
     await cluster.idle();
     await cluster.close();
